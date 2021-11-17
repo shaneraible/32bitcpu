@@ -437,4 +437,228 @@ puts "Correct! LB Memory load correct"
 puts "Wrong! LB Memory load incorrect you fool"
 }
 
+# resetting for load testing
+puts "Resetting"
 remove_force MemoryDataIn
+
+add_force Reset 0
+run 10ps
+add_force Reset 1
+run 10 ns
+add_force Reset 0
+run 10ps
+
+for {set i 0} {$i < 32} {incr i} {
+    add_force WriteData -radix dec $i
+    add_force WriteRegisterAddress -radix dec $i
+    add_force RegWrite 1
+    run 10ns
+}
+
+add_force RegWrite 0
+run 10ns
+
+remove_force RegWrite
+remove_force WriteData
+remove_force WriteRegisterAddress
+remove_force PCIn
+while {[get_value -radix unsigned RegWrite] == [expr {0x01}] } {
+    run 5ns
+}
+
+
+# LUI
+# 001111 00000 00010 1000000000000010
+# Store r1 <- 0b10000000000000100000000000000000
+add_force MemoryDataIn -radix bin 00111100000000101000000000000010
+
+while {[get_value -radix unsigned RegWrite] != [expr {0x1}] } {
+    add_force MemoryDataIn -radix bin 00111100000000101000000000000010
+    run 5ns
+}
+run 10ns
+
+if {[get_value -radix unsigned r2Out] ==  [expr {0b10000000000000100000000000000000}]} {
+puts "Correct! LUI Memory load correct"
+} else {
+puts "Wrong! LUI Memory load incorrect you fool"
+}
+
+remove_force MemoryDataIn
+
+# MULTU
+# 000000 00001 00010 0000000000 011001
+# Store (LO, HIGH) <- r1 * r2 = 1 * 0b10000000000000100000000000000000
+add_force MemoryDataIn -radix bin 00000000001000100000000000011001
+
+while {[get_value -radix unsigned MultDone] != [expr {0x1}] } {
+    run 5ns
+}
+run 10ns
+remove_force MemoryDataIn
+
+if {[get_value -radix unsigned LowRegOut] ==  [expr {0b10000000000000100000000000000000}]} {
+puts "Correct! LOW multiplication value correct"
+} else {
+puts "Wrong! LOW multiplication value incorrect"
+}
+if {[get_value -radix unsigned HighRegOut] ==  [expr {0b00}]} {
+puts "Correct! HIGH multiplication value correct"
+} else {
+puts "Wrong! HIGH multiplication value incorrect"
+}
+
+remove_force MemoryDataIn
+
+# ADDI 
+# 001000 00000 00011 1111111111111111 
+add_force MemoryDataIn -radix bin 00100000000000111111111111111111   
+while {[get_value -radix unsigned RegWrite] != [expr {0x1}] } {
+    run 5ns
+}
+run 10ns
+
+if {[get_value -radix unsigned ALUOut] ==  [expr {0xFFFFFFFF}]} {
+puts "Correct! ADDI R0 + 0xFFFFFFFF = 0xFFFFFFFF -> r3"
+} else {
+puts "Wrong! ADDI R0 + 0xFFFFFFFF != 0xFFFFFFFF -> r3"
+}
+
+remove_force MemoryDataIn
+
+# MULTU
+# 000000 00001 00011 0000000000 011001
+# Store (LO, HIGH) <- r1 * r3 = 1 * 0xFFFFFFFF
+add_force MemoryDataIn -radix bin 00000000001000110000000000011001
+
+while {[get_value -radix unsigned MultDone] != [expr {0x1}] } {
+    run 5ns
+}
+run 10ns
+remove_force MemoryDataIn
+
+if {[get_value -radix unsigned LowRegOut] ==  [expr {0xFFFFFFFF}]} {
+puts "Correct! (LO, HIGH) <- r1 * r3 = 1 * 0xFFFFFFFF LOW correct"
+} else {
+puts "Wrong! (LO, HIGH) <- r1 * r3 = 1 * 0xFFFFFFFF LOW incorrect"
+}
+if {[get_value -radix unsigned HighRegOut] ==  [expr {0b00}]} {
+puts "Correct! (LO, HIGH) <- r1 * r3 = 1 * 0xFFFFFFFF HIGH correct"
+} else {
+puts "Wrong! (LO, HIGH) <- r1 * r3 = 1 * 0xFFFFFFFF HIGH incorrect"
+}
+
+# MULTU
+# 000000 00011 00011 0000000000 011001
+# Store (LO, HIGH) <- r0 * r0 = 0 * 0
+add_force MemoryDataIn -radix bin 00000000000000000000000000011001
+
+while {[get_value -radix unsigned MultDone] != [expr {0x1}] } {
+    run 5ns
+}
+run 10ns
+remove_force MemoryDataIn
+
+if {[get_value -radix unsigned LowRegOut] ==  [expr {0x0}]} {
+puts "Correct! (LO, HIGH) <- r0 * r0 = 0 * 0 LOW correct"
+} else {
+puts "Wrong! (LO, HIGH) <- r0 * r0 = 0 * 0 LOW incorrect"
+}
+if {[get_value -radix unsigned HighRegOut] ==  [expr {0x0}]} {
+puts "Correct! (LO, HIGH) <- r0 * r0 = 0 * 0 HIGH correct"
+} else {
+puts "Wrong! (LO, HIGH) <- r0 * r0 = 0 * 0 HIGH incorrect"
+}
+
+
+
+# MULTU
+# 000000 00011 00011 0000000000 011001
+# Store (LO, HIGH) <- r3 * r3 = 0xFFFFFFFF * 0xFFFFFFFF
+add_force MemoryDataIn -radix bin 00000000011000110000000000011001
+
+while {[get_value -radix unsigned MultDone] != [expr {0x1}] } {
+    run 5ns
+}
+run 10ns
+remove_force MemoryDataIn
+
+if {[get_value -radix unsigned LowRegOut] ==  [expr {0x00000001}]} {
+puts "Correct! (LO, HIGH) <- r3 * r3 = 0xFFFFFFFF * 0xFFFFFFFF LOW correct"
+} else {
+puts "Wrong! (LO, HIGH) <- r3 * r3 = 0xFFFFFFFF * 0xFFFFFFFF LOW incorrect"
+}
+if {[get_value -radix unsigned HighRegOut] ==  [expr {0xfffffffe}]} {
+puts "Correct! (LO, HIGH) <- r3 * r3 = 0xFFFFFFFF * 0xFFFFFFFF HIGH correct"
+} else {
+puts "Wrong! (LO, HIGH) <- r3 * r3 = 0xFFFFFFFF * 0xFFFFFFFF HIGH incorrect"
+}
+
+
+# MFHI
+# 000000 0000000001 00001 00000 010000
+# r1 <- HI
+add_force MemoryDataIn -radix bin 00000000000000010000100000010000
+
+while {[get_value -radix unsigned RegWrite] != [expr {0x1}] } {
+    run 5ns
+}
+run 10ns
+remove_force MemoryDataIn
+
+if {[get_value -radix unsigned r2Out] ==  [expr {0xfffffffe}]} {
+puts "Correct! r1 <- HI correct"
+} else {
+puts "Wrong! r1 <- HI incorrect"
+}
+
+# MFHI
+# 000000 0000000001 00001 00000 010010
+# r1 <- LO
+add_force MemoryDataIn -radix bin 00000000000000010000100000010010
+
+while {[get_value -radix unsigned RegWrite] != [expr {0x1}] } {
+    run 5ns
+}
+run 10ns
+remove_force MemoryDataIn
+
+if {[get_value -radix unsigned r2Out] ==  [expr {0x00000001}]} {
+puts "Correct! r1 <- LO correct"
+} else {
+puts "Wrong! r1 <- LO incorrect"
+}
+
+# LUI
+# 001111 00000 00010 1111111111110000
+# Store r1 <- 0b10000000000000100000000000000000
+add_force MemoryDataIn -radix bin 00111100000000101111111111110000
+
+while {[get_value -radix unsigned RegWrite] != [expr {0x1}] } {
+    add_force MemoryDataIn -radix bin 00111100000000101111111111110000
+    run 5ns
+}
+run 10ns
+remove_force MemoryDataIn
+
+if {[get_value -radix unsigned r2Out] ==  [expr {0b11111111111100000000000000000000}]} {
+puts "Correct! LUI Memory load correct"
+} else {
+puts "Wrong! LUI Memory load incorrect you fool"
+}
+
+# CLO
+# 011100 00010 00010 00010 00000 100001 
+# Store r1 <- 0b10000000000000100000000000000000
+add_force MemoryDataIn -radix bin 01110000010000100001000000100001
+
+while {[get_value -radix unsigned RegWrite] != [expr {0x1}] } {
+    run 5ns
+}
+run 10ns
+
+if {[get_value -radix unsigned r1Out] == 12} {
+puts "Correct! CLO is 12"
+} else {
+puts "Wrong! CLO is not 12"
+}

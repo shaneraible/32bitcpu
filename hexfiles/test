@@ -1,0 +1,8 @@
+addi $7, $0, 17 
+lui $3, 0x0000ffff
+addi $2, $0, 0x0000ffff
+multu $2, $3
+mfhi $2
+sw $2, 40($0)
+mflo $3
+sw $3, 44($0) 

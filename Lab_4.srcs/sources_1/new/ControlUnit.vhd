@@ -34,16 +34,21 @@ use IEEE.STD_LOGIC_1164.ALL;
 entity ControlUnit is
     Port (
         Op:             in std_logic_vector(5 downto 0);
-        ALUInst:        in std_logic_vector(5 downto 0);
+        SpecFunc:        in std_logic_vector(5 downto 0);
         MultDone:       in std_logic;
         Clk:            in std_logic;
         Rst:            in std_logic;
         Ovrflw:         in std_logic;   --TODO: Do not store on arithmetic overflows
         RegWrite:       out std_logic;
+        WrCLO:          out std_logic;
+        WrHIGH:         out std_logic;
+        WrLOW:          out std_logic;
+        MultRst:        out std_logic;
+        UpperImm:       out std_logic;
         MemRegWrite:    out std_logic;
         IRWrite:        out std_logic;
         RegDst:         out std_logic;
-        MemtoReg:       out std_logic_vector(1 downto 0);
+        MemtoReg:       out std_logic_vector(2 downto 0);
         Wr_A:           out std_logic;
         Wr_B:           out std_logic;
         PCWriteCond:    out std_logic;
@@ -53,14 +58,18 @@ entity ControlUnit is
         ALUSrcA:        out std_logic;        
         ALURegWrite:    out std_logic;
         PCSource:       out std_logic_vector(1 downto 0);
-        ALUSrcB:        out std_logic_vector(1 downto 0);
+        ALUSrcB:        out std_logic_vector(2 downto 0);
         ALUOp:          out std_logic_vector(3 downto 0);     
         SHAMTSel:       out std_logic 
     );
 end ControlUnit;
 
 architecture Behavioral of ControlUnit is
-    type state is (IFetch, IDecodeRFetch, Execution, RTypeDone, BranchCompletion, JumpCompletion, MemAddressComputation, MemAccessLW, MemAccessSW, MemReadCompletion);
+    type state is (IFetch, IDecodeRFetch, 
+        Execution, RTypeDone, BranchCompletion, JumpCompletion, 
+        MemAddressComputation, MemAccessLW, MemAccessSW, MemReadCompletion,
+        MultiplicationExecution, MultiplicationDone, MoveSpecial
+    );
     signal pr_state, nx_state: state;
     
 begin
@@ -74,7 +83,7 @@ begin
         end if;
     end process;
     
-    process (pr_state, Op)
+    process (pr_state, Op, MultDone)
     begin
         case pr_state is
             when IFetch =>
@@ -82,14 +91,18 @@ begin
                 
             when IDecodeRFetch =>
                 if Op = "000000" then --SPECIAL
-                    if ALUInst = "010010" then --MFLO
-                    elsif ALUInst = "010000" then --MFHI
-                    elsif ALUInst = "001000" then --JR
+                    if SpecFunc = "010010" then --MFLO
+                        nx_state <= MoveSpecial;
+                    elsif SpecFunc = "010000" then --MFHI
+                        nx_state <= MoveSpecial;
+                    elsif SpecFunc = "011001" then -- MULTU
+                        nx_state <= MultiplicationExecution;
+                    elsif SpecFunc = "001000" then --JR
                         nx_state <= JumpCompletion;
                     else
                         nx_state <= Execution;
                     end if;
-                elsif Op = "001000" or Op = "001101" or Op = "001010" then --ARITH
+                elsif Op = "001000" or Op = "001101" or Op = "001010" or Op = "011100" then --ARITH
                     nx_state <= Execution;
                 elsif Op = "000010" then
                     nx_state <= JumpCompletion;
@@ -100,19 +113,15 @@ begin
                 else
                     nx_state <= IFetch; 
                 end if;
-                
+            
+            -- R type
             when Execution =>
-                if ALUInst /= "011001" and Op = "000000" then
+                if SpecFunc /= "011001" and Op = "000000" then
                     nx_state <= RTypeDone; 
-                elsif Op = "001000" or Op = "001101" or Op = "001010" then
+                elsif Op = "001000" or Op = "001101" or Op = "001010" or Op = "011100" then
                     nx_state <= RTypeDone; 
-                else
-                    if MultDone = '1' then
-                        nx_state <= RTypeDone;
-                    else
-                        nx_state <= pr_state;
-                    end if;
                 end if;
+                
             when RTypeDone => 
                 nx_state <= IFetch;
             
@@ -135,15 +144,30 @@ begin
                 nx_state <= MemReadCompletion;
             when MemReadCompletion => --LW
                 nx_state <= IFetch;
+            
+            --Multiplication
+            when MultiplicationExecution =>
+                if MultDone = '1' then
+                    nx_state <= MultiplicationDone;
+                else
+                    nx_state <= pr_state;
+                end if;
+                
+            when MultiplicationDone =>
+                nx_state <= IFetch;
+            
+            when MoveSpecial =>
+                nx_state <= IFetch;
         end case;
     end process;
     
-    process (pr_state)
+    process (pr_state, MultDone)
     begin
         case pr_state is
             when IFetch =>
                 RegWrite <= '0';
                 IRWrite <= '1';
+                MultRst <= '1';
                 
                 ALURegWrite <= '0';
                 IorD <= '0';
@@ -153,7 +177,7 @@ begin
                 PCWrite <= '1';
                 PCSource <= "00";
                 ALUSrcA <= '0';
-                ALUSrcB <= "01";
+                ALUSrcB <= "001";
                 ALUOp <= "0101";
                 PCWriteCond <= '0';
                 
@@ -164,35 +188,45 @@ begin
                 
                 -- SPECIAL
                 if Op = "000000" then --SPECIAL
-                    if ALUInst = "001000" then --JR
+                    if SpecFunc = "001000" then --JR
                         PCWrite <= '1';
                         ALUSrcA <= '1';
-                        ALUSrcB <= "00";
+                        ALUSrcB <= "000";
                         ALUOp <= "0101";
+                    elsif SpecFunc = "010000" then --MFHI
+                        PCWrite <= '0';
+                        MemtoReg <= "101";
+                    elsif SpecFunc = "010010" then --MFLO
+                        MemtoReg <= "100";
+                        PCWrite <= '0';
+
+                    elsif SpecFunc = "011001" then --MULTU
+                        PCWrite <= '0';
+                        ALUSrcA <= '1';
+                        ALUSrcB <= "000";
+                        MemtoReg <= "000";
                         
                     else --ALU
                         PCWrite <= '0';
                         ALUSrcA <= '1';
-                        ALUSrcB <= "00";
+                        ALUSrcB <= "000";
                         RegDst <= '1';
-                        MemtoReg <= "00";
+                        MemtoReg <= "000";
     
-                        if ALUInst = "100001" then --ADDU
+                        if SpecFunc = "100001" then --ADDU
                             ALUOp <= "0101";
-                        elsif ALUInst = "100100" then --AND
+                        elsif SpecFunc = "100100" then --AND
                             ALUOp <= "0000";
-                        elsif ALUInst = "011001" then --MULTU
-                            -- USE MULTIPLIER WHEN WE GOT IT 
-                        elsif ALUInst = "000000" then --SLL
+                        elsif SpecFunc = "000000" then --SLL
                             ALUOp <= "1100";
                             SHAMTSel <= '0';
-                        elsif ALUInst = "000100" then --SLLV
+                        elsif SpecFunc = "000100" then --SLLV
                             ALUOp <= "1100";
                             SHAMTSel <= '1';
-                        elsif ALUInst = "000011" then --SRA
+                        elsif SpecFunc = "000011" then --SRA
                             ALUOp <= "1111";
                             SHAMTSel <= '0';
-                        elsif ALUInst = "100010" then --SUB
+                        elsif SpecFunc = "100010" then --SUB
                             ALUOp <= "0110";
                         end if;
                     end if;
@@ -201,29 +235,39 @@ begin
                 elsif Op = "001000" then --ADDI
                     ALUSrcA <= '1';
                     PCWrite <= '0';
-                    ALUSrcB <= "10";
+                    ALUSrcB <= "010";
                     RegDst <= '0';
-                    MemtoReg <= "00";
+                    MemtoReg <= "000";
                     ALUOp <= "0100";
-
+                    UpperImm <= '0';
+                
+                elsif Op = "001111" then --LUI
+                    ALUSrcA <= '1';
+                    PCWrite <= '0';
+                    ALUSrcB <= "010";
+                    RegDst <= '0';
+                    MemtoReg <= "000";
+                    ALUOp <= "0100";
+                    UpperImm <= '1';
+                    
                 elsif Op = "001101" then --ORI
                     PCWrite <= '0';
-
                     ALUSrcA <= '1';
-                    ALUSrcB <= "10";
+                    ALUSrcB <= "100";
                     RegDst <= '0';
-                    MemtoReg <= "00";
+                    MemtoReg <= "000";
                     ALUOp <= "0001";
+                    UpperImm <= '0';
 
                 elsif Op = "001010" then --SLTI
                     PCWrite <= '0';
-
                     ALUSrcA <= '1';
-                    ALUSrcB <= "10";
+                    ALUSrcB <= "010";
                     RegDst <= '0';
-                    MemtoReg <= "00";
+                    MemtoReg <= "000";
                     ALUOp <= "1010";
-                
+                    UpperImm <= '0';
+
                 --J-Type instructions 
                 elsif Op = "000010" then --Jump
                     PCSource <= "10";
@@ -231,37 +275,47 @@ begin
                 elsif Op = "000101" then --BNE
                     -- PC = PC + Target
                     ALUSrcA <= '0';
-                    ALUSrcB <= "11";
+                    ALUSrcB <= "011";
                     ALURegWrite <= '1';
                     RegDst <= '0';
-                    MemtoReg <= "00";
+                    MemtoReg <= "000";
                     ALUOp <= "0100";
                     PCSource <= "01";
                     PCWrite <= '0';                   
                 elsif Op = "000001" then --BLZTL 
                      PCWrite <= '0';
                 
-                elsif Op = "101011" or Op = "001111" or Op = "100011" or Op = "100001" or Op = "100000" then
+                elsif Op = "101011" or Op = "100011" or Op = "100001" or Op = "100000" then
+                    PCWrite <= '0';
+
                     -- Calculate offset
                     ALUSrcA <= '1';
-                    ALUSrcB <= "10";
+                    ALUSrcB <= "010";
                     ALUOp <= "0100"; --ADD
-                    IorD <= '1';               
-                
+                    IorD <= '1'; 
+                    
+                elsif Op = "011100" then
+                    if SpecFunc = "100001" then -- CLO
+                        ALUSrcA <= '0';
+                        RegDst <= '1';
+                        PCWrite <= '0';    
+                        WrCLO <= '1';
+                        MemToReg <= "110";
+                    end if;              
                 else
                 end if;
             when Execution =>
                 Wr_A <= '0';
                 Wr_B <= '0';
-                if ALUInst /= "011001" or Op /= "000000" or MultDone = '1' then
-                    ALURegWrite <= '1';
-                    IorD <= '0';
-                end if;
+                ALURegWrite <= '1';
+                IorD <= '0';
+                WrCLO <= '0';
                 
             when RTypeDone => 
                 RegWrite <= '1';
                 ALURegWrite <= '0';
-            
+                WrCLO <= '0';
+
             -- J Type
             when JumpCompletion =>
                 PCWrite <= '1';
@@ -269,10 +323,10 @@ begin
                 
             when BranchCompletion =>
                 ALUSrcA <= '1';
-                ALUSrcB <= "00";
+                ALUSrcB <= "000";
                 ALURegWrite <= '0';
                 RegDst <= '0';
-                MemtoReg <= "00";
+                MemtoReg <= "000";
                 ALUOp <= "0110";
                 PCWrite <= '0';
                 PCWriteCond <= '1';
@@ -296,17 +350,36 @@ begin
                 MemRegWrite <= '1';
                 if Op = "001111" then -- LUI
                 elsif Op = "100011" then -- LW 
-                    MemToReg <= "01";
+                    MemToReg <= "001";
                 elsif Op = "100001" then -- LH
-                    MemToReg <= "10";
+                    MemToReg <= "010";
                 elsif Op = "100000" then -- LB
-                    MemToReg <= "11";
+                    MemToReg <= "011";
                 end if;
             when MemReadCompletion => --LW
                 MemRegWrite <= '0';
                 RegWrite <= '1';
                 RegDst <= '0';
-                               
+                
+            
+            when MultiplicationExecution =>
+                Wr_A <= '0';
+                Wr_B <= '0';
+                MultRst <= '0';
+
+                if MultDone = '1' then
+                    WrHIGH <= '1';
+                    WrLOW <= '1';
+                end if;
+                
+            when MultiplicationDone =>
+                WrHIGH <= '0';
+                WrLOW <= '0';
+                MultRst <= '1';
+            
+            when MoveSpecial =>
+                RegWrite <= '1';     
+                          
         end case;
     end process;
 

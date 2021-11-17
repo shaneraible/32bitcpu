@@ -94,18 +94,23 @@ end component;
 component ControlUnit is
     Port (
         Op:             in std_logic_vector(5 downto 0);
-        ALUInst:        in std_logic_vector(5 downto 0);
+        SpecFunc:       in std_logic_vector(5 downto 0);
         MultDone:       in std_logic;
         Clk:            in std_logic;
         Rst:            in std_logic;
         Ovrflw:         in std_logic;   --TODO: Do not store on arithmetic overflows
         RegWrite:       out std_logic;
+        WrHIGH:         out std_logic;
+        WrLOW:          out std_logic;
+        MultRst:        out std_logic;
+        UpperImm:       out std_logic;
         MemRegWrite:    out std_logic;
         IRWrite:        out std_logic;
         RegDst:         out std_logic;
-        MemtoReg:       out std_logic_vector(1 downto 0);
+        MemtoReg:       out std_logic_vector(2 downto 0);
         Wr_A:           out std_logic;
         Wr_B:           out std_logic;
+        WrCLO:          out std_logic;
         PCWriteCond:    out std_logic;
         PCWrite:        out std_logic;
         MemWrite:       out std_logic;
@@ -113,44 +118,56 @@ component ControlUnit is
         ALUSrcA:        out std_logic;        
         ALURegWrite:    out std_logic;
         PCSource:       out std_logic_vector(1 downto 0);
-        ALUSrcB:        out std_logic_vector(1 downto 0);
+        ALUSrcB:        out std_logic_vector(2 downto 0);
         ALUOp:          out std_logic_vector(3 downto 0);     
         SHAMTSel:       out std_logic 
     );
 end component;
+component CLO is
+    Port ( DataIn : in STD_LOGIC_VECTOR (31 downto 0);
+           Count : out STD_LOGIC_VECTOR (31 downto 0));
+end component;
+
+signal MultOut: std_logic_vector(63 downto 0);
 signal instructionOut, WriteData, r1Out, r2Out, A, B, ALUOut, ALUResult, MemDataRegOut, ALUIn_1, ALUIn_2, PCOut, PCIn, JAddr: std_logic_vector(31 downto 0);
-signal immediateSE32, immediateSE32LS2: std_logic_vector(31 downto 0);
+signal immediateSE32, immediateSE32LS2, LowRegOut, HighRegOut, CLOOut, CLOResult, immediate32: std_logic_vector(31 downto 0);
 signal WriteRegisterAddress, SHAMT: std_logic_vector(4 downto 0);
 signal ALUOp: std_logic_vector(3 downto 0);
-signal ALUSrcB, MemtoReg, PCSource: std_logic_vector(1 downto 0);
-signal RegWrite, RegDst, ALUSrcA, IRWrite, Wr_A, Wr_B, ALURegWrite, Zero, Overflow, MultDone, SHAMTSel, PCWrite, PCWriteCond, PCEn, IorD, MemRegWrite, UpperIm: std_logic;
+signal ALUSrcB, MemtoReg: std_logic_vector(2 downto 0);
+signal PCSource: std_logic_vector(1 downto 0);
+signal RegWrite, RegDst, ALUSrcA, IRWrite, Wr_A, Wr_B, ALURegWrite, Zero, Overflow, MultDone, SHAMTSel, PCWrite, PCWriteCond, PCEn, IorD, MemRegWrite, UpperImm, MultReset, WrHIGH, WrLOW, WrCLO: std_logic;
 
 begin
     controller: ControlUnit
     port map (
-        Op => instructionOut(31 downto 26),
-        ALUInst => instructionOut(5 downto 0),
-        Clk => Clock,
-        Rst => Reset,
-        MultDone =>  MultDone,
-        RegWrite => RegWrite,
-        IRWrite => IRWrite,
-        RegDst => RegDst,
-        MemtoReg => Memtoreg,
-        MemRegWrite => MemRegWrite,
-        Wr_A => Wr_A,
-        Wr_B => Wr_B,
-        PCWrite => PCWrite,
-        PCWriteCond => PCWriteCond,
-        Ovrflw => Overflow,
-        IorD => IorD,
-        ALUSrcA => ALUSrcA,
-        ALUSrcB => ALUSrcB,
-        PCSource => PCSource,
-        ALURegWrite => ALURegWrite,
-        ALUOp => ALUOp,
-        SHAMTSel => SHAMTSel,
-        MemWrite => MemWrite
+        Op              => instructionOut(31 downto 26),
+        SpecFunc        => instructionOut(5 downto 0),
+        Clk             => Clock,
+        Rst             => Reset,
+        MultDone        =>  MultDone,
+        RegWrite        => RegWrite,
+        IRWrite         => IRWrite,
+        RegDst          => RegDst,
+        MemtoReg        => Memtoreg,
+        MemRegWrite     => MemRegWrite,
+        WrHIGH          => WrHIGH,
+        WrLOW           => WrLOW,
+        MultRst         => MultReset,
+        Wr_A            => Wr_A,
+        Wr_B            => Wr_B,
+        WrCLO           => WrCLO,
+        UpperImm        => UpperImm,
+        PCWrite         => PCWrite,
+        PCWriteCond     => PCWriteCond,
+        Ovrflw          => Overflow,
+        IorD            => IorD,
+        ALUSrcA         => ALUSrcA,
+        ALUSrcB         => ALUSrcB,
+        PCSource        => PCSource,
+        ALURegWrite     => ALURegWrite,
+        ALUOp           => ALUOp,
+        SHAMTSel        => SHAMTSel,
+        MemWrite        => MemWrite
     );
     
     -- Memory signals
@@ -163,16 +180,43 @@ begin
                             else instructionOut(20 downto 16);
     
     -- Data to write to the GPR
-    WriteData <= ALUOut         when MemToReg = "00" else 
-                 MemDataRegOut  when MemToReg = "01" else
-                 x"0000"  & MemDataRegOut(15 downto 0)  when MemToReg = "10" else 
-                 x"000000"& MemDataRegOut(7 downto 0);
+    WriteData <= ALUOut         when MemToReg = "000" else 
+                 MemDataRegOut  when MemToReg = "001" else
+                 x"0000"&MemDataRegOut(15 downto 0) when MemToReg = "010"  and ALUOut(1 downto 0) /= "10" else --LH
+                 x"0000"&MemDataRegOut(31 downto 16) when MemToReg = "010" and ALUOut(1 downto 0) = "10" else 
+                 
+                 x"000000"&MemDataRegOut(7 downto 0) when MemToReg = "011" and ALUOut(1 downto 0) = "00" else --LB
+                 x"000000"&MemDataRegOut(15 downto 8) when MemToReg = "011" and ALUOut(1 downto 0) = "01" else
+                 x"000000"&MemDataRegOut(23 downto 16) when MemToReg = "011" and ALUOut(1 downto 0) = "10" else
+                 x"000000"&MemDataRegOut(31 downto 24) when MemToReg = "011" and ALUOut(1 downto 0) = "11" else
+                 
+                 LowRegOut when MemToReg = "100" else
+                 HighRegOut when MemToReg = "101" else
+                 CLOOut;
+    
+    --CLO Unit       
+    getclo: CLO 
+    port map(
+        DataIn => R1Out,
+        Count => CLOResult
+    );
+    
+    cloreg: Reg 
+    port map(
+        clk => Clock,
+        d => CLOResult,
+        en => WrCLO,
+        rst => Reset,
+        q => CLOOut
+    );         
     
     -- Jump Address
     JAddr <= PCOut(31 downto 28) & instructionOut(25 downto 0) & "00";
     
     -- Immediate values
-    immediateSE32       <= std_logic_vector(resize(signed(instructionOut(15 downto 0)), 32));
+    immediate32         <= x"0000"&instructionOut(15 downto 0);
+    immediateSE32       <= std_logic_vector(resize(signed(instructionOut(15 downto 0)), 32)) when UpperImm = '0' else
+                           instructionOut(15 downto 0)&x"0000";
     immediateSE32LS2    <= immediateSE32(29 downto 0) & "00";
                             
     regFile: RegisterFile
@@ -255,10 +299,11 @@ begin
     ALUIn_1 <= A when ALUSrcA = '1' else PCOut;
     
     -- Mux select ALU Input 1
-    ALUIn_2 <= B when ALUSrcB = "00" else 
-               x"00000004" when ALUSrcB = "01" else
-               immediateSE32 when ALUSrcB = "10" else
-               immediateSE32LS2;
+    ALUIn_2 <= B when ALUSrcB = "000" else 
+               x"00000004" when ALUSrcB = "001" else
+               immediateSE32 when ALUSrcB = "010" else
+               immediateSE32LS2 when ALUSrcB = "011" else
+               immediate32;
     
     SHAMT <= instructionOut(10 downto 6) when SHAMTSel = '0' else
              A(4 downto 0);
@@ -273,5 +318,32 @@ begin
         Overflow => Overflow
     );
     
+    Mult: Multiplier
+    port map (
+        A       => ALUIn_1,
+        B       => ALUIn_2,
+        clk     => Clock,
+        rst     => MultReset,
+        R       => MultOut,
+        Done    => MultDone
+    );
+    
+    LOWReg: Reg
+    port map(
+        clk => Clock,
+        d => MultOut(31 downto 0), 
+        en => WrLOW,
+        rst => Reset,
+        q => LowRegOut
+    ); 
+    
+    HIGHReg: Reg
+    port map(
+        clk => Clock,
+        d => MultOut(63 downto 32), 
+        en => WrHIGH,
+        rst => Reset,
+        q => HighRegOut
+    );   
     
 end Structural;
