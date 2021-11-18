@@ -93,7 +93,7 @@ puts "Test 9 failed"
 puts "test10.tcl"
 source test10.tcl -notrace
 
-if {[get_value -radix unsigned {/cpu_tb/U_1/mw_U_0ram_table[8]}] == [expr {0x00003008}] } {
+if {[get_value -radix unsigned {/cpu_tb/U_1/mw_U_0ram_table[8]}] == [expr {0x00000008}] } {
 puts "Test 10 / BLTZL passed"
 } else {
 puts "Test 10 / BLTZL failed"

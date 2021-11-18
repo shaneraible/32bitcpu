@@ -1,4 +1,8 @@
-addi $7, $0, 17 
 addi $11, $0, -3 
-and $11, $7, $11 
-sw $11, 15($7) 
+bltzal $11,B_GO 
+sll $0, $0, 0 
+j EXIT 
+sll $0, $0, 0 
+B_GO: jr $31 
+sll $0, $0, 0 
+EXIT: sw $31, 32($zero) 

@@ -98,6 +98,7 @@ component ControlUnit is
         MultDone:       in std_logic;
         Clk:            in std_logic;
         Rst:            in std_logic;
+        r1Neg:          in std_logic;
         Ovrflw:         in std_logic;   --TODO: Do not store on arithmetic overflows
         RegWrite:       out std_logic;
         WrHIGH:         out std_logic;
@@ -106,7 +107,7 @@ component ControlUnit is
         UpperImm:       out std_logic;
         MemRegWrite:    out std_logic;
         IRWrite:        out std_logic;
-        RegDst:         out std_logic;
+        RegDst:         out std_logic_vector(1 downto 0);
         MemtoReg:       out std_logic_vector(2 downto 0);
         Wr_A:           out std_logic;
         Wr_B:           out std_logic;
@@ -134,8 +135,8 @@ signal immediateSE32, immediateSE32LS2, LowRegOut, HighRegOut, CLOOut, CLOResult
 signal WriteRegisterAddress, SHAMT: std_logic_vector(4 downto 0);
 signal ALUOp: std_logic_vector(3 downto 0);
 signal ALUSrcB, MemtoReg: std_logic_vector(2 downto 0);
-signal PCSource: std_logic_vector(1 downto 0);
-signal RegWrite, RegDst, ALUSrcA, IRWrite, Wr_A, Wr_B, ALURegWrite, Zero, Overflow, MultDone, SHAMTSel, PCWrite, PCWriteCond, PCEn, IorD, MemRegWrite, UpperImm, MultReset, WrHIGH, WrLOW, WrCLO: std_logic;
+signal RegDst, PCSource: std_logic_vector(1 downto 0);
+signal RegWrite, ALUSrcA, IRWrite, Wr_A, Wr_B, ALURegWrite, Zero, Overflow, MultDone, SHAMTSel, PCWrite, PCWriteCond, PCEn, IorD, MemRegWrite, UpperImm, MultReset, WrHIGH, WrLOW, WrCLO: std_logic;
 
 begin
     controller: ControlUnit
@@ -144,6 +145,7 @@ begin
         SpecFunc        => instructionOut(5 downto 0),
         Clk             => Clock,
         Rst             => Reset,
+        r1Neg           => r1Out(31),
         MultDone        =>  MultDone,
         RegWrite        => RegWrite,
         IRWrite         => IRWrite,
@@ -174,10 +176,13 @@ begin
     MemoryAddress <= PCOut when IorD = '0' else
                      ALUOut;
     MemoryDataOut <= B;
-   
+    
+    
+    
     -- Select Write Register Mux
-    WriteRegisterAddress <= instructionOut(15 downto 11) when RegDst = '1' 
-                            else instructionOut(20 downto 16);
+    WriteRegisterAddress <= instructionOut(15 downto 11) when RegDst = "01" 
+                            else instructionOut(20 downto 16) when RegDst = "00"
+                            else "11111";
     
     -- Data to write to the GPR
     WriteData <= ALUOut         when MemToReg = "000" else 
@@ -192,7 +197,8 @@ begin
                  
                  LowRegOut when MemToReg = "100" else
                  HighRegOut when MemToReg = "101" else
-                 CLOOut;
+                 CLOOut when MemToReg = "110" else
+                 PCOut;
     
     --CLO Unit       
     getclo: CLO 

@@ -39,6 +39,7 @@ entity ControlUnit is
         Clk:            in std_logic;
         Rst:            in std_logic;
         Ovrflw:         in std_logic;   --TODO: Do not store on arithmetic overflows
+        r1Neg:          in std_logic;
         RegWrite:       out std_logic;
         WrCLO:          out std_logic;
         WrHIGH:         out std_logic;
@@ -47,7 +48,7 @@ entity ControlUnit is
         UpperImm:       out std_logic;
         MemRegWrite:    out std_logic;
         IRWrite:        out std_logic;
-        RegDst:         out std_logic;
+        RegDst:         out std_logic_vector(1 downto 0);
         MemtoReg:       out std_logic_vector(2 downto 0);
         Wr_A:           out std_logic;
         Wr_B:           out std_logic;
@@ -68,7 +69,7 @@ architecture Behavioral of ControlUnit is
     type state is (IFetch, IDecodeRFetch, 
         Execution, RTypeDone, BranchCompletion, JumpCompletion, 
         MemAddressComputation, MemAccessLW, MemAccessSW, MemReadCompletion,
-        MultiplicationExecution, MultiplicationDone, MoveSpecial
+        MultiplicationExecution, MultiplicationDone, MoveSpecial, BLTZLAdd
     );
     signal pr_state, nx_state: state;
     
@@ -83,7 +84,7 @@ begin
         end if;
     end process;
     
-    process (pr_state, Op, MultDone)
+    process (pr_state, Op, MultDone, SpecFunc)
     begin
         case pr_state is
             when IFetch =>
@@ -106,7 +107,9 @@ begin
                     nx_state <= Execution;
                 elsif Op = "000010" then
                     nx_state <= JumpCompletion;
-                elsif Op = "000101" or Op = "000001" then
+                elsif Op = "000101" then
+                    nx_state <= BranchCompletion;
+                elsif Op = "000001" then
                     nx_state <= BranchCompletion;
                 elsif Op = "001111" or Op = "101011" or Op = "100011" or Op = "100001" or Op = "100000" then
                     nx_state <= MemAddressComputation;
@@ -130,7 +133,8 @@ begin
                 nx_state <= IFetch;
             when BranchCompletion =>
                 nx_state <= IFetch;   
-            
+            when BLTZLAdd =>
+                nx_state <= BranchCompletion;
             -- Mem-Type
             when MemAddressComputation => -- LW + SW
                 if Op = "001111" or Op = "100011" or Op = "100001" or Op = "100000" then -- LW 
@@ -161,7 +165,7 @@ begin
         end case;
     end process;
     
-    process (pr_state, MultDone)
+    process (pr_state, MultDone, Op, SpecFunc)
     begin
         case pr_state is
             when IFetch =>
@@ -210,7 +214,7 @@ begin
                         PCWrite <= '0';
                         ALUSrcA <= '1';
                         ALUSrcB <= "000";
-                        RegDst <= '1';
+                        RegDst <= "01";
                         MemtoReg <= "000";
     
                         if SpecFunc = "100001" then --ADDU
@@ -236,7 +240,7 @@ begin
                     ALUSrcA <= '1';
                     PCWrite <= '0';
                     ALUSrcB <= "010";
-                    RegDst <= '0';
+                    RegDst <= "00";
                     MemtoReg <= "000";
                     ALUOp <= "0100";
                     UpperImm <= '0';
@@ -245,7 +249,7 @@ begin
                     ALUSrcA <= '1';
                     PCWrite <= '0';
                     ALUSrcB <= "010";
-                    RegDst <= '0';
+                    RegDst <= "00";
                     MemtoReg <= "000";
                     ALUOp <= "0100";
                     UpperImm <= '1';
@@ -254,7 +258,7 @@ begin
                     PCWrite <= '0';
                     ALUSrcA <= '1';
                     ALUSrcB <= "100";
-                    RegDst <= '0';
+                    RegDst <= "00";
                     MemtoReg <= "000";
                     ALUOp <= "0001";
                     UpperImm <= '0';
@@ -263,7 +267,7 @@ begin
                     PCWrite <= '0';
                     ALUSrcA <= '1';
                     ALUSrcB <= "010";
-                    RegDst <= '0';
+                    RegDst <= "00";
                     MemtoReg <= "000";
                     ALUOp <= "1010";
                     UpperImm <= '0';
@@ -277,14 +281,33 @@ begin
                     ALUSrcA <= '0';
                     ALUSrcB <= "011";
                     ALURegWrite <= '1';
-                    RegDst <= '0';
+                    RegDst <= "00";
                     MemtoReg <= "000";
                     ALUOp <= "0100";
                     PCSource <= "01";
-                    PCWrite <= '0';                   
-                elsif Op = "000001" then --BLZTL 
-                     PCWrite <= '0';
-                
+                    PCWrite <= '0';
+                    
+                elsif Op = "000001" then --BLTZL
+                    -- Write current PC+4 +4 to register 31
+                    RegDst <= "10";
+                    RegWrite <= '1';
+                    MemToReg <= "111";
+--                    --PC+4 (pc+8 total)
+--                    PCWrite <= '0';
+--                    PCSource <= "00";
+--                    ALUSrcA <= '0';
+--                    ALUSrcB <= "001";
+--                    ALUOp <= "0101";
+--                    PCWriteCond <= '0';
+                    ALUSrcA <= '0';
+                    ALUSrcB <= "011";
+                    ALURegWrite <= '1';
+--                    RegDst <= "00";
+--                    MemtoReg <= "000";
+                    ALUOp <= "0100";
+                    PCSource <= "01";
+                    PCWrite <= '0';
+                                                     
                 elsif Op = "101011" or Op = "100011" or Op = "100001" or Op = "100000" then
                     PCWrite <= '0';
 
@@ -297,7 +320,7 @@ begin
                 elsif Op = "011100" then
                     if SpecFunc = "100001" then -- CLO
                         ALUSrcA <= '0';
-                        RegDst <= '1';
+                        RegDst <= "01";
                         PCWrite <= '0';    
                         WrCLO <= '1';
                         MemToReg <= "110";
@@ -320,12 +343,24 @@ begin
             when JumpCompletion =>
                 PCWrite <= '1';
                 ALURegWrite <= '0';
+                RegWrite <= '0';
+            
+            when BLTZLAdd =>
+                -- PC = PC + Target
+                ALUSrcA <= '0';
+                ALUSrcB <= "011";
+                ALURegWrite <= '1';
+                RegDst <= "00";
+                MemtoReg <= "000";
+                ALUOp <= "0100";
+                PCSource <= "01";
+                PCWrite <= '0';
                 
             when BranchCompletion =>
                 ALUSrcA <= '1';
                 ALUSrcB <= "000";
                 ALURegWrite <= '0';
-                RegDst <= '0';
+                RegDst <= "00";
                 MemtoReg <= "000";
                 ALUOp <= "0110";
                 PCWrite <= '0';
@@ -359,7 +394,7 @@ begin
             when MemReadCompletion => --LW
                 MemRegWrite <= '0';
                 RegWrite <= '1';
-                RegDst <= '0';
+                RegDst <= "00";
                 
             
             when MultiplicationExecution =>

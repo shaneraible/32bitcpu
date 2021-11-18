@@ -32,7 +32,8 @@ use IEEE.STD_LOGIC_1164.ALL;
 --use UNISIM.VComponents.all;
 
 entity cpu_tb is
---  Port ( );
+    Port ( reset : in STD_LOGIC;
+           clock : in STD_LOGIC);
 end cpu_tb;
 
 
@@ -56,20 +57,20 @@ component CPU_memory IS
 
 -- Declarations
 end component ;
-signal clk, reset, MemWrite: std_logic;
+signal MemWrite: std_logic;
 signal CPUDataIn, CPUAddrOut, CPUDataOut: std_logic_vector(31 downto 0);
 begin
     U_1: CPU_memory port map(
-        clk => clk,
+        clk => clock,
         MemWrite => MemWrite,
         addr => CPUAddrOut,
         dataIn => CPUDataOut,
         dataOut => CPUDataIn
     );
     
-    U_2: CPU port map (
+    U_0: CPU port map (
         reset => reset,
-        clock => clk, 
+        clock => clock, 
         MemoryDataIn => CPUDataIn,
         MemoryAddress => CPUAddrOut,
         MemoryDataOut => CPUDataOut,
