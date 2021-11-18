@@ -187,13 +187,13 @@ begin
     -- Data to write to the GPR
     WriteData <= ALUOut         when MemToReg = "000" else 
                  MemDataRegOut  when MemToReg = "001" else
-                 x"0000"&MemDataRegOut(15 downto 0) when MemToReg = "010"  and ALUOut(1 downto 0) /= "10" else --LH
-                 x"0000"&MemDataRegOut(31 downto 16) when MemToReg = "010" and ALUOut(1 downto 0) = "10" else 
+                 std_logic_vector(resize(signed(MemDataRegOut(15 downto 0)), 32)) when MemToReg = "010"  and ALUOut(1 downto 0) /= "10" else --LH
+                 std_logic_vector(resize(signed(MemDataRegOut(31 downto 16)), 32)) when MemToReg = "010" and ALUOut(1 downto 0) = "10" else 
                  
-                 x"000000"&MemDataRegOut(7 downto 0) when MemToReg = "011" and ALUOut(1 downto 0) = "00" else --LB
-                 x"000000"&MemDataRegOut(15 downto 8) when MemToReg = "011" and ALUOut(1 downto 0) = "01" else
-                 x"000000"&MemDataRegOut(23 downto 16) when MemToReg = "011" and ALUOut(1 downto 0) = "10" else
-                 x"000000"&MemDataRegOut(31 downto 24) when MemToReg = "011" and ALUOut(1 downto 0) = "11" else
+                 std_logic_vector(resize(signed(MemDataRegOut(7 downto 0)), 32)) when MemToReg = "011" and ALUOut(1 downto 0) = "00" else --LB
+                 std_logic_vector(resize(signed(MemDataRegOut(15 downto 8)), 32)) when MemToReg = "011" and ALUOut(1 downto 0) = "01" else
+                 std_logic_vector(resize(signed(MemDataRegOut(23 downto 16)), 32)) when MemToReg = "011" and ALUOut(1 downto 0) = "10" else
+                 std_logic_vector(resize(signed(MemDataRegOut(31 downto 24)), 32)) when MemToReg = "011" and ALUOut(1 downto 0) = "11" else
                  
                  LowRegOut when MemToReg = "100" else
                  HighRegOut when MemToReg = "101" else

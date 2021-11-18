@@ -1450,3 +1450,50 @@ con
 ----------------End of Script----------------
 
 00:42:38 INFO  : Launch script is exported to file 'C:\Users\SHR77\ECE1195\Lab_4\Lab_4.sdk\.sdk\launch_scripts\xilinx_c-c++_application_(system_debugger)\system_debugger_using_debug_cpu.elf_on_local.tcl'
+00:43:16 INFO  : Disconnected from the channel tcfchan#5.
+00:43:17 INFO  : Connected to target on host '127.0.0.1' and port '3121'.
+00:43:18 INFO  : Jtag cable 'Xilinx PYNQ-Z1 003017AEE2D8A' is selected.
+00:43:18 INFO  : 'jtag frequency' command is executed.
+00:43:18 INFO  : Sourcing of 'C:/Users/SHR77/ECE1195/Lab_4/Lab_4.sdk/Lab_4_wrapper_hw_platform_0/ps7_init.tcl' is done.
+00:43:18 INFO  : 'targets -set -filter {jtag_cable_name =~ "Xilinx PYNQ-Z1 003017AEE2D8A" && level==0} -index 1' command is executed.
+00:43:20 INFO  : FPGA configured successfully with bitstream "C:/Users/SHR77/ECE1195/Lab_4/Lab_4.sdk/Lab_4_wrapper_hw_platform_0/Lab_4_wrapper.bit"
+00:43:20 INFO  : Context for 'APU' is selected.
+00:43:20 INFO  : Hardware design information is loaded from 'C:/Users/SHR77/ECE1195/Lab_4/Lab_4.sdk/Lab_4_wrapper_hw_platform_0/system.hdf'.
+00:43:20 INFO  : 'configparams force-mem-access 1' command is executed.
+00:43:20 INFO  : Context for 'APU' is selected.
+00:43:20 INFO  : 'stop' command is executed.
+00:43:21 INFO  : 'ps7_init' command is executed.
+00:43:21 INFO  : 'ps7_post_config' command is executed.
+00:43:21 INFO  : Context for processor 'ps7_cortexa9_0' is selected.
+00:43:21 INFO  : Processor reset is completed for 'ps7_cortexa9_0'.
+00:43:21 INFO  : Context for processor 'ps7_cortexa9_0' is selected.
+00:43:21 INFO  : The application 'C:/Users/SHR77/ECE1195/Lab_4/Lab_4.sdk/cpu/Debug/cpu.elf' is downloaded to processor 'ps7_cortexa9_0'.
+00:43:21 INFO  : 'configparams force-mem-access 0' command is executed.
+00:43:21 INFO  : ----------------XSDB Script----------------
+connect -url tcp:127.0.0.1:3121
+source C:/Users/SHR77/ECE1195/Lab_4/Lab_4.sdk/Lab_4_wrapper_hw_platform_0/ps7_init.tcl
+targets -set -filter {jtag_cable_name =~ "Xilinx PYNQ-Z1 003017AEE2D8A" && level==0} -index 1
+fpga -file C:/Users/SHR77/ECE1195/Lab_4/Lab_4.sdk/Lab_4_wrapper_hw_platform_0/Lab_4_wrapper.bit
+targets -set -nocase -filter {name =~"APU*" && jtag_cable_name =~ "Xilinx PYNQ-Z1 003017AEE2D8A"} -index 0
+loadhw -hw C:/Users/SHR77/ECE1195/Lab_4/Lab_4.sdk/Lab_4_wrapper_hw_platform_0/system.hdf -mem-ranges [list {0x40000000 0xbfffffff}]
+configparams force-mem-access 1
+targets -set -nocase -filter {name =~"APU*" && jtag_cable_name =~ "Xilinx PYNQ-Z1 003017AEE2D8A"} -index 0
+stop
+ps7_init
+ps7_post_config
+targets -set -nocase -filter {name =~ "ARM*#0" && jtag_cable_name =~ "Xilinx PYNQ-Z1 003017AEE2D8A"} -index 0
+rst -processor
+targets -set -nocase -filter {name =~ "ARM*#0" && jtag_cable_name =~ "Xilinx PYNQ-Z1 003017AEE2D8A"} -index 0
+dow C:/Users/SHR77/ECE1195/Lab_4/Lab_4.sdk/cpu/Debug/cpu.elf
+configparams force-mem-access 0
+----------------End of Script----------------
+
+00:43:21 INFO  : Memory regions updated for context APU
+00:43:21 INFO  : Context for processor 'ps7_cortexa9_0' is selected.
+00:43:21 INFO  : 'con' command is executed.
+00:43:21 INFO  : ----------------XSDB Script (After Launch)----------------
+targets -set -nocase -filter {name =~ "ARM*#0" && jtag_cable_name =~ "Xilinx PYNQ-Z1 003017AEE2D8A"} -index 0
+con
+----------------End of Script----------------
+
+00:43:21 INFO  : Launch script is exported to file 'C:\Users\SHR77\ECE1195\Lab_4\Lab_4.sdk\.sdk\launch_scripts\xilinx_c-c++_application_(system_debugger)\system_debugger_using_debug_cpu.elf_on_local.tcl'

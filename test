@@ -1,8 +1,8 @@
-addi $11, $0, -3 
-bltzal $11,B_GO 
-sll $0, $0, 0 
-j EXIT 
-sll $0, $0, 0 
-B_GO: jr $31 
-sll $0, $0, 0 
-EXIT: sw $31, 32($zero) 
+addi $7, $0, 17
+lui $3, 0xffff
+addi $2, $0, 0x0fff
+multu $2, $3
+mfhi $2
+sw $2, 40($0)
+mflo $3
+sw $3, 44($0)

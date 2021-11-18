@@ -69,7 +69,7 @@ architecture Behavioral of ControlUnit is
     type state is (IFetch, IDecodeRFetch, 
         Execution, RTypeDone, BranchCompletion, JumpCompletion, 
         MemAddressComputation, MemAccessLW, MemAccessSW, MemReadCompletion,
-        MultiplicationExecution, MultiplicationDone, MoveSpecial, BLTZLAdd
+        MultiplicationExecution, MultiplicationDone, MoveSpecial
     );
     signal pr_state, nx_state: state;
     
@@ -133,8 +133,7 @@ begin
                 nx_state <= IFetch;
             when BranchCompletion =>
                 nx_state <= IFetch;   
-            when BLTZLAdd =>
-                nx_state <= BranchCompletion;
+
             -- Mem-Type
             when MemAddressComputation => -- LW + SW
                 if Op = "001111" or Op = "100011" or Op = "100001" or Op = "100000" then -- LW 
@@ -172,7 +171,8 @@ begin
                 RegWrite <= '0';
                 IRWrite <= '1';
                 MultRst <= '1';
-                
+                UpperImm <= '0';
+
                 ALURegWrite <= '0';
                 IorD <= '0';
                 MemWrite <= '0';
@@ -189,6 +189,7 @@ begin
                 IRWrite <= '0';
                 Wr_A <= '1';
                 Wr_B <= '1';
+                UpperImm <= '0';
                 
                 -- SPECIAL
                 if Op = "000000" then --SPECIAL
@@ -200,10 +201,11 @@ begin
                     elsif SpecFunc = "010000" then --MFHI
                         PCWrite <= '0';
                         MemtoReg <= "101";
+                        RegDst <= "01";
                     elsif SpecFunc = "010010" then --MFLO
                         MemtoReg <= "100";
                         PCWrite <= '0';
-
+                        RegDst <= "01";
                     elsif SpecFunc = "011001" then --MULTU
                         PCWrite <= '0';
                         ALUSrcA <= '1';
@@ -219,6 +221,7 @@ begin
     
                         if SpecFunc = "100001" then --ADDU
                             ALUOp <= "0101";
+                          
                         elsif SpecFunc = "100100" then --AND
                             ALUOp <= "0000";
                         elsif SpecFunc = "000000" then --SLL
@@ -292,25 +295,16 @@ begin
                     RegDst <= "10";
                     RegWrite <= '1';
                     MemToReg <= "111";
---                    --PC+4 (pc+8 total)
---                    PCWrite <= '0';
---                    PCSource <= "00";
---                    ALUSrcA <= '0';
---                    ALUSrcB <= "001";
---                    ALUOp <= "0101";
---                    PCWriteCond <= '0';
                     ALUSrcA <= '0';
                     ALUSrcB <= "011";
                     ALURegWrite <= '1';
---                    RegDst <= "00";
---                    MemtoReg <= "000";
                     ALUOp <= "0100";
                     PCSource <= "01";
                     PCWrite <= '0';
                                                      
                 elsif Op = "101011" or Op = "100011" or Op = "100001" or Op = "100000" then
                     PCWrite <= '0';
-
+                    
                     -- Calculate offset
                     ALUSrcA <= '1';
                     ALUSrcB <= "010";
@@ -333,7 +327,8 @@ begin
                 ALURegWrite <= '1';
                 IorD <= '0';
                 WrCLO <= '0';
-                
+                UpperImm <= '0';
+
             when RTypeDone => 
                 RegWrite <= '1';
                 ALURegWrite <= '0';
@@ -344,17 +339,7 @@ begin
                 PCWrite <= '1';
                 ALURegWrite <= '0';
                 RegWrite <= '0';
-            
-            when BLTZLAdd =>
-                -- PC = PC + Target
-                ALUSrcA <= '0';
-                ALUSrcB <= "011";
-                ALURegWrite <= '1';
-                RegDst <= "00";
-                MemtoReg <= "000";
-                ALUOp <= "0100";
-                PCSource <= "01";
-                PCWrite <= '0';
+
                 
             when BranchCompletion =>
                 ALUSrcA <= '1';
@@ -373,7 +358,6 @@ begin
                 MemWrite <= '0';
                 ALURegWrite <= '1';
 
-
             when MemAccessSW => --SW 
                 IorD <= '1';
                 MemWrite <= '1';
@@ -391,6 +375,7 @@ begin
                 elsif Op = "100000" then -- LB
                     MemToReg <= "011";
                 end if;
+                
             when MemReadCompletion => --LW
                 MemRegWrite <= '0';
                 RegWrite <= '1';

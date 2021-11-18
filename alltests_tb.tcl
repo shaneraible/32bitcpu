@@ -66,7 +66,8 @@ puts "Test 6 failed"
 puts "test7.tcl"
 source test7.tcl -notrace
 
-if {[get_value -radix unsigned {/cpu_tb/U_1/mw_U_0ram_table[8]}] == [expr {0x01234567}] && [get_value -radix unsigned {/cpu_tb/U_1/mw_U_0ram_table[12]}] == [expr {0x00000123}]} {
+if {[get_value -radix unsigned {/cpu_tb/U_1/mw_U_0ram_table[8]}] == [expr {0x01234567}] && \
+[get_value -radix unsigned {/cpu_tb/U_1/mw_U_0ram_table[12]}] == [expr {0x00000123}]} {
 puts "Test 7 passed"
 } else {
 puts "Test 7 failed"
@@ -102,9 +103,8 @@ puts "Test 10 / BLTZL failed"
 puts "test11.tcl"
 source test11.tcl -notrace
 
-if {[get_value -radix unsigned {/cpu_tb/U_1/mw_U_0ram_table[10]}] == [expr {0x0000fffe}] && [get_value -radix unsigned {/cpu_tb/U_1/mw_U_0ram_table[11]}] == [expr {0x00010000}] } {
+if {[get_value -radix unsigned {/cpu_tb/U_1/mw_U_0ram_table[10]}] == [expr {0x00000ffe}] && [get_value -radix unsigned {/cpu_tb/U_1/mw_U_0ram_table[11]}] == [expr {0xf0010000}] } {
 puts "Test 11 passed"
 } else {
 puts "Test 11 failed"
 }
-
